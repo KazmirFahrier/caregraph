@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "caregraph"
+version = "0.1.0"
+description = "A HIPAA-aware clinical intelligence agent (healthcare AI flagship)."
+requires-python = ">=3.10"
+dependencies = []
+
+# Real backends are optional so the core slice runs offline with the stdlib.
+[project.optional-dependencies]
+rag = ["llama-index>=0.11", "qdrant-client>=1.9", "sentence-transformers>=3.0"]
+phi = ["presidio-analyzer>=2.2", "presidio-anonymizer>=2.2"]
+eval = ["ragas>=0.2", "datasets>=2.19"]
+agent = ["langgraph>=0.2", "mcp>=1.0"]
+finetune = ["torch>=2.2", "transformers>=4.44", "peft>=0.12", "trl>=0.9", "bitsandbytes>=0.43"]
+serve = ["fastapi>=0.115", "uvicorn>=0.30", "arize-phoenix>=4.0", "opentelemetry-sdk>=1.26"]
+dev = ["pytest>=8", "mypy>=1.11", "ruff>=0.6"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+caregraph = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+strict = true
+packages = ["caregraph"]
+
+# Optional heavy/ML deps are import-guarded and absent from the dev install, so
+# silence missing-stub noise for them (they are only imported inside try/except).
+[[tool.mypy.overrides]]
+module = [
+    "torch.*", "transformers.*", "peft.*", "trl.*", "datasets.*", "ragas.*",
+    "qdrant_client.*", "opentelemetry.*", "fastapi.*", "pydantic.*",
+]
+ignore_missing_imports = true
+
+# FastAPI/Pydantic are dynamically typed; relax the decorator/subclass checks that
+# only fire because their symbols resolve to Any without the serve extra installed.
+[[tool.mypy.overrides]]
+module = "caregraph.serve.app"
+disallow_untyped_decorators = false
+disallow_subclassing_any = false
+disallow_any_decorated = false

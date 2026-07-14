@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caregraph-api
+  labels: { app: caregraph, tier: api }
+spec:
+  # Single replica while the human-in-the-loop resume state lives in-process
+  # (serve/pending.py InMemoryPendingStore). A resume_token is only valid on the pod
+  # that issued it, so scaling past 1 requires a shared PendingStore (Redis) — see
+  # AUDIT4 A4-M2. Do NOT bump this without swapping the store.
+  replicas: 1
+  selector:
+    matchLabels: { app: caregraph, tier: api }
+  template:
+    metadata:
+      labels: { app: caregraph, tier: api }
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/kazmirfahrier/caregraph:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: CAREGRAPH_VECTOR_BACKEND
+              value: qdrant
+            - name: QDRANT_URL
+              value: http://qdrant:6333
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://phoenix:4317
+            # LLM credentials come from a secret — never baked into the image.
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef: { name: caregraph-llm, key: api-key }
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { cpu: "1", memory: "1Gi" }
+          readinessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false

@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: caregraph-api
+spec:
+  selector: { app: caregraph, tier: api }
+  ports:
+    - port: 80
+      targetPort: 8000
+  type: ClusterIP
+---
+# Restrict egress: the API may reach only the vector DB, the trace collector, and the
+# LLM endpoint — the network-level half of the HIPAA/least-privilege posture.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: caregraph-api-egress
+spec:
+  podSelector:
+    matchLabels: { app: caregraph, tier: api }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector: { matchLabels: { app: qdrant } }
+        - podSelector: { matchLabels: { app: phoenix } }
+    - ports:
+        - { protocol: TCP, port: 443 }   # LLM provider over TLS
